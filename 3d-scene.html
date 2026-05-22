@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D Scene</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #080810;
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    canvas { display: block; width: 100vw; height: 100vh; }
+
+    #ui {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+    }
+
+    #title {
+      position: absolute;
+      top: 36px; left: 40px;
+    }
+
+    #title h1 {
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.35);
+      font-weight: 400;
+    }
+
+    #controls {
+      position: absolute;
+      bottom: 36px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      pointer-events: all;
+    }
+
+    .btn {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.6);
+      padding: 8px 20px;
+      border-radius: 100px;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border-color: rgba(255,255,255,0.35);
+    }
+
+    .btn.active {
+      background: rgba(255,255,255,0.12);
+      color: #fff;
+      border-color: rgba(255,255,255,0.5);
+    }
+
+    #hint {
+      position: absolute;
+      bottom: 36px;
+      right: 40px;
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.2);
+      line-height: 2;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div id="ui">
+  <div id="title">
+    <h1>Three.js — Offline Demo</h1>
+  </div>
+
+  <div id="controls">
+    <button class="btn active" data-shape="knot">Knot</button>
+    <button class="btn" data-shape="icosa">Icosa</button>
+    <button class="btn" data-shape="sphere">Sphere</button>
+    <button class="btn" data-shape="torus">Torus</button>
+    <button class="btn" data-shape="box">Box</button>
+  </div>
+
+  <div id="hint">
+    Drag to orbit<br>
+    Scroll to zoom
+  </div>
+</div>
+
+<!--
+  OFFLINE SETUP:
+  1. Download three.min.js from https://github.com/mrdoob/three.js/releases
+  2. Place it in the same folder as this file (or a js/ subfolder)
+  3. Update the src below to match, e.g. src="js/three.min.js"
+  4. Open this file in any browser — no internet needed!
+-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+  const canvas = document.getElementById('canvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.2;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x080810);
+  scene.fog = new THREE.FogExp2(0x080810, 0.08);
+
+  const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
+  camera.position.set(0, 0, 5);
+
+  function resize() {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+
+  const lights = [
+    { color: 0x8b5cf6, intensity: 6, pos: [5, 5, 4] },
+    { color: 0x06b6d4, intensity: 6, pos: [-5, -3, 3] },
+    { color: 0xf59e0b, intensity: 3, pos: [0, -5, -4] },
+    { color: 0xec4899, intensity: 4, pos: [-3, 4, -2] },
+  ];
+
+  const pointLights = lights.map(l => {
+    const pl = new THREE.PointLight(l.color, l.intensity, 20);
+    pl.position.set(...l.pos);
+    scene.add(pl);
+    return pl;
+  });
+
+  // Particle field
+  const particleGeo = new THREE.BufferGeometry();
+  const particleCount = 1800;
+  const positions = new Float32Array(particleCount * 3);
+  for (let i = 0; i < particleCount * 3; i++) {
+    positions[i] = (Math.random() - 0.5) * 30;
+  }
+  particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const particleMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.03, transparent: true, opacity: 0.4 });
+  scene.add(new THREE.Points(particleGeo, particleMat));
+
+  // Main material
+  const material = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    metalness: 0.1,
+    roughness: 0.1,
+    transmission: 0.4,
+    thickness: 1.5,
+    transparent: true,
+    opacity: 0.92,
+  });
+
+  const wireMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.06,
+  });
+
+  const geometries = {
+    knot:   () => new THREE.TorusKnotGeometry(1.1, 0.38, 160, 32),
+    icosa:  () => new THREE.IcosahedronGeometry(1.6, 1),
+    sphere: () => new THREE.SphereGeometry(1.6, 64, 40),
+    torus:  () => new THREE.TorusGeometry(1.2, 0.5, 48, 80),
+    box:    () => new THREE.BoxGeometry(2, 2, 2, 4, 4, 4),
+  };
+
+  let mesh, wire;
+  let targetRotX = 0, targetRotY = 0;
+  let currentRotX = 0, currentRotY = 0;
+  let autoRotY = 0;
+
+  function setShape(key) {
+    if (mesh) { scene.remove(mesh); scene.remove(wire); }
+    const geo = geometries[key]();
+    mesh = new THREE.Mesh(geo, material);
+    wire = new THREE.Mesh(geo, wireMaterial);
+    scene.add(mesh);
+    scene.add(wire);
+
+    document.querySelectorAll('.btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.shape === key);
+    });
+  }
+  setShape('knot');
+
+  document.querySelectorAll('.btn').forEach(btn => {
+    btn.addEventListener('click', () => setShape(btn.dataset.shape));
+  });
+
+  // Orbit controls (manual)
+  let dragging = false, lastX = 0, lastY = 0;
+  let dragDeltaX = 0, dragDeltaY = 0;
+
+  canvas.addEventListener('mousedown', e => { dragging = true; lastX = e.clientX; lastY = e.clientY; dragDeltaX = 0; dragDeltaY = 0; });
+  window.addEventListener('mouseup', () => dragging = false);
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    dragDeltaX = e.clientX - lastX;
+    dragDeltaY = e.clientY - lastY;
+    targetRotY += dragDeltaX * 0.012;
+    targetRotX += dragDeltaY * 0.012;
+    lastX = e.clientX; lastY = e.clientY;
+  });
+
+  canvas.addEventListener('touchstart', e => { dragging = true; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY; });
+  canvas.addEventListener('touchend', () => dragging = false);
+  canvas.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    targetRotY += (e.touches[0].clientX - lastX) * 0.012;
+    targetRotX += (e.touches[0].clientY - lastY) * 0.012;
+    lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+    e.preventDefault();
+  }, { passive: false });
+
+  canvas.addEventListener('wheel', e => {
+    camera.position.z = Math.max(2.5, Math.min(12, camera.position.z + e.deltaY * 0.01));
+  });
+
+  const clock = new THREE.Clock();
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
+
+    if (!dragging) {
+      autoRotY += 0.004;
+    }
+
+    currentRotX += (targetRotX - currentRotX) * 0.08;
+    currentRotY += (targetRotY + autoRotY - currentRotY) * 0.08;
+
+    if (mesh) {
+      mesh.rotation.x = currentRotX;
+      mesh.rotation.y = currentRotY;
+      wire.rotation.x = currentRotX;
+      wire.rotation.y = currentRotY;
+    }
+
+    // Animate lights
+    pointLights[0].position.x = Math.sin(t * 0.6) * 6;
+    pointLights[0].position.y = Math.cos(t * 0.4) * 5;
+    pointLights[1].position.x = Math.cos(t * 0.5) * 5;
+    pointLights[1].position.y = Math.sin(t * 0.7) * 5;
+    pointLights[2].position.x = Math.sin(t * 0.3) * 4;
+    pointLights[3].position.y = Math.cos(t * 0.9) * 5;
+
+    renderer.render(scene, camera);
+  }
+
+  animate();
+</script>
+</body>
+</html>
